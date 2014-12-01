@@ -28,14 +28,14 @@
 -type start_ret() :: {'ok', pid()} | 'ignore' | {'error', term()}.
 
 -record(state, {
-    supervisor :: pid(),
-    workers :: [pid()],
-    waiting :: pid_queue(),
-    monitors :: ets:tid(),
-    size = 5 :: non_neg_integer(),
-    overflow = 0 :: non_neg_integer(),
-    max_overflow = 10 :: non_neg_integer()
-}).
+        supervisor :: pid(),
+        workers :: [pid()],
+        waiting :: pid_queue(),
+        monitors :: ets:tid(),
+        size = 5 :: non_neg_integer(),
+        overflow = 0 :: non_neg_integer(),
+        max_overflow = 10 :: non_neg_integer()
+        }).
 
 -spec checkout(Pool :: pool()) -> pid().
 checkout(Pool) ->
@@ -61,12 +61,12 @@ checkin(Pool, Worker) when is_pid(Worker) ->
     gen_server:cast(Pool, {checkin, Worker}).
 
 -spec transaction(Pool :: pool(), Fun :: fun((Worker :: pid()) -> any()))
-    -> any().
+                                             -> any().
 transaction(Pool, Fun) ->
     transaction(Pool, Fun, ?TIMEOUT).
 
 -spec transaction(Pool :: pool(), Fun :: fun((Worker :: pid()) -> any()),
-    Timeout :: timeout()) -> any().
+                                             Timeout :: timeout()) -> any().
 transaction(Pool, Fun, Timeout) ->
     Worker = poolboy:checkout(Pool, true, Timeout),
     try
@@ -151,8 +151,8 @@ handle_cast({checkin, Pid}, State = #state{monitors = Monitors}) ->
 
 handle_cast({cancel_waiting, Pid}, State) ->
     Waiting = queue:filter(fun ({{P, _}, Ref}) ->
-        P =/= Pid orelse not(erlang:demonitor(Ref))
-    end, State#state.waiting),
+                    P =/= Pid orelse not(erlang:demonitor(Ref))
+            end, State#state.waiting),
     {noreply, State#state{waiting = Waiting}};
 
 handle_cast(_Msg, State) ->
@@ -180,7 +180,7 @@ handle_call({checkout, Block}, {FromPid, _} = From, State) ->
                 {Pid, Ref} ->
                     true = ets:insert(Monitors, {Pid, Ref}),
                     {reply, Pid, State#state{overflow = Overflow + 1}}
-             end;
+            end;
         [] when Block =:= false ->
             {reply, full, State};
         [] ->
@@ -266,7 +266,7 @@ new_worker(Sup) ->
         {ok, Pid} ->
             true = link(Pid),
             Pid
-   end.
+    end.
 
 new_worker(Sup, FromPid) ->
     case new_worker(Sup) of
@@ -325,7 +325,7 @@ handle_worker_exit(Pid, State) ->
         {empty, Empty} ->
             Workers =
                       [new_worker(Sup)
-                 | lists:filter(fun (P) -> P =/= Pid end, State#state.workers)],
+                       | lists:filter(fun (P) -> P =/= Pid end, State#state.workers)],
             State#state{workers = Workers, waiting = Empty}
     end.
 
