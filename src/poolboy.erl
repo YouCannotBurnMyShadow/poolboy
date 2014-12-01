@@ -170,9 +170,17 @@ handle_call({checkout, Block}, {FromPid, _} = From, State) ->
             true = ets:insert(Monitors, {Pid, Ref}),
             {reply, Pid, State#state{workers = Left}};
         [] when MaxOverflow > 0, Overflow < MaxOverflow ->
-            {Pid, Ref} = new_worker(Sup, FromPid),
-            true = ets:insert(Monitors, {Pid, Ref}),
-            {reply, Pid, State#state{overflow = Overflow + 1}};
+            case new_worker(Sup, FromPid) of
+                {error, _} when Block =:= true ->
+                    Ref = erlang:monitor(process, FromPid),
+                    Waiting = queue:in({From, Ref}, State#state.waiting),
+                    {noreply, State#state{waiting = Waiting}};
+                Error = {error, _} ->
+                    {reply, Error, State};
+                {Pid, Ref} ->
+                    true = ets:insert(Monitors, {Pid, Ref}),
+                    {reply, Pid, State#state{overflow = Overflow + 1}}
+             end;
         [] when Block =:= false ->
             {reply, full, State};
         [] ->
@@ -252,14 +260,22 @@ start_pool(StartFun, PoolArgs, WorkerArgs) ->
     end.
 
 new_worker(Sup) ->
-    {ok, Pid} = supervisor:start_child(Sup, []),
-    true = link(Pid),
-    Pid.
+    case  supervisor:start_child(Sup, []) of
+        Error = {error, _} ->
+            Error;
+        {ok, Pid} ->
+            true = link(Pid),
+            Pid
+   end.
 
 new_worker(Sup, FromPid) ->
-    Pid = new_worker(Sup),
-    Ref = erlang:monitor(process, FromPid),
-    {Pid, Ref}.
+    case new_worker(Sup) of
+        Error = {error, _} ->
+            Error;
+        Pid ->
+            Ref = erlang:monitor(process, FromPid),
+            {Pid, Ref}
+    end.
 
 dismiss_worker(Sup, Pid) ->
     true = unlink(Pid),
@@ -308,7 +324,7 @@ handle_worker_exit(Pid, State) ->
             State#state{overflow = Overflow - 1, waiting = Empty};
         {empty, Empty} ->
             Workers =
-                [new_worker(Sup)
+                      [new_worker(Sup)
                  | lists:filter(fun (P) -> P =/= Pid end, State#state.workers)],
             State#state{workers = Workers, waiting = Empty}
     end.
