@@ -263,6 +263,8 @@ new_worker(Sup) ->
     case  supervisor:start_child(Sup, []) of
         Error = {error, _} ->
             Error;
+        {ok, undefined} ->
+            {error, undefined};
         {ok, Pid} ->
             true = link(Pid),
             Pid
